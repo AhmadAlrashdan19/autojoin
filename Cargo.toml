@@ -1,0 +1,10 @@
+[package]
+name = "teams-autojoin"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chromiumoxide = { version = "0.7", default-features = false, features = ["tokio-runtime"] }
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+anyhow = "1"
