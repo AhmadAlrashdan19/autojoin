@@ -1,6 +1,9 @@
-use anyhow::{Context, Ok, Result, bail};
+use anyhow::{Context, Result, bail};
 use serde::Deserialize;
-use std::{env, fs, path::PathBuf};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 fn default_stay() -> u64 {
     90
@@ -32,10 +35,9 @@ struct ConfigFile {
 impl Config {
     fn path() -> PathBuf {
         let home = env::var("HOME").expect("HOME not set");
-        PathBuf::from(home).join(
-            /*".config/teams-autojoin/config.toml"*/
-            "Desktop/Studying/Github_Repos/Projects/teams-autojoin/config.toml",
-        )
+        PathBuf::from(home).join(/*".config/autojoin/config.toml"*/ Path::new(
+            "Desktop/Studying/Github_Repos/Projects/autojoin/config.toml",
+        ))
     }
 
     pub fn load() -> Result<Self> {
@@ -46,8 +48,12 @@ impl Config {
             toml::from_str(&text).with_context(|| format!("Invalid TOML in {}", path.display()))?;
         let cfg = file.configurations;
 
-        if !cfg.link.starts_with("https://") || !cfg.home_url.starts_with("https://") {
+        if !cfg.link.starts_with("https://") {
             bail!("Config: Link must start with https://");
+        }
+
+        if !cfg.home_url.starts_with("https://") {
+            bail!("Config: Home URL must start with https://");
         }
 
         if !cfg.email.contains('@') {

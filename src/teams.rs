@@ -35,7 +35,7 @@ pub async fn sign_in(page: &Page, email: &str) -> Result<()> {
 pub async fn run(page: &Page, cfg: &Config) -> Result<()> {
     // Warm up the signed-in session first.
     page.goto(&cfg.home_url).await?;
-    sleep(Duration::from_secs(8)).await;
+    let _ = find_button(page, "Join now|Continue on this browser|Use the web app instead|^Sign in$|^Retry$", 40, false).await;
     snapshot::snapshot(page, "warmup").await;
 
     for attempt in 1..=3 {
@@ -62,6 +62,7 @@ pub async fn run(page: &Page, cfg: &Config) -> Result<()> {
             return Ok(());
         }
 
+        snapshot::screenshot(page, &format!("attempt-{attempt}-failed")).await;
         eprintln!("attempt {attempt} failed, url = {:?}", page.url().await?);
     }
     bail!("Could not join after 3 attempts")

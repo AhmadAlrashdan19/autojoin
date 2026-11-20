@@ -12,7 +12,7 @@ use crate::bootstrap::bootstrap;
 async fn main() {
     if let Err(e) = bootstrap().await {
         eprintln!("FATAL: {e:#?}");
-        alarm(&format!("teams-autojoin failed to start: {e}"));
+        alarm(&format!("autojoin failed to start: {e}")).await;
         std::process::exit(1);
     }
 }

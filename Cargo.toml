@@ -1,5 +1,5 @@
 [package]
-name = "teams-autojoin"
+name = "autojoin"
 version = "0.1.0"
 edition = "2024"
 

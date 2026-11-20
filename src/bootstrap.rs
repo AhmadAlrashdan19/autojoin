@@ -1,8 +1,7 @@
 use anyhow::{Result, anyhow};
 use chromiumoxide::{Browser, BrowserConfig};
 use futures::StreamExt;
-use std::{path::PathBuf, time::Duration};
-use tokio::time::sleep;
+use std::path::PathBuf;
 
 use crate::alarm::alarm;
 use crate::config::Config;
@@ -10,7 +9,7 @@ use crate::teams::run;
 
 fn profile_dir() -> PathBuf {
     let home = std::env::var("HOME").expect("HOME not set");
-    PathBuf::from(home).join("./config/teams-autojoin/profile-brave")
+    PathBuf::from(home).join(".config/autojoin/profile-brave")
 }
 
 pub async fn bootstrap() -> Result<()> {
@@ -46,8 +45,8 @@ pub async fn bootstrap() -> Result<()> {
     let page = browser.new_page("about:blank").await?;
     if let Err(e) = run(&page, &cfg).await {
         eprintln!("ERROR: {e:#}");
-        alarm(&format!("Auto-join failed: {e}. Join manually NOW!"));
-        sleep(Duration::from_secs(60 * 60)).await;
+        alarm(&format!("Auto-join failed: {e}. Join manually NOW!")).await;
+        browser.wait().await?;
     }
     browser.close().await?;
 
