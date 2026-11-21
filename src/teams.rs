@@ -4,7 +4,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 use crate::browser::{click_button, find_button, type_into};
-use crate::config::Config;
+use crate::configurations::{meeting::Meeting, settings::Settings};
 use crate::snapshot;
 
 pub async fn is_guest_page(page: &Page) -> bool {
@@ -32,14 +32,16 @@ pub async fn sign_in(page: &Page, email: &str) -> Result<()> {
     Ok(())
 }
 
-pub async fn run(page: &Page, cfg: &Config) -> Result<()> {
+pub async fn run(page: &Page, cfg: &Settings, meeting: &Meeting) -> Result<()> {
+    let stay_minutes = meeting.stay_minutes.unwrap_or(cfg.stay_minutes);
+
     // Warm up the signed-in session first.
     page.goto(&cfg.home_url).await?;
     let _ = find_button(page, "Join now|Continue on this browser|Use the web app instead|^Sign in$|^Retry$", 40, false).await;
     snapshot::snapshot(page, "warmup").await;
 
     for attempt in 1..=3 {
-        page.goto(&cfg.link).await?;
+        page.goto(&meeting.link).await?;
         sleep(Duration::from_secs(6)).await;
         dismiss_popups(page).await;
         snapshot::snapshot(page, "after goto").await;
@@ -57,8 +59,8 @@ pub async fn run(page: &Page, cfg: &Config) -> Result<()> {
             && find_button(page, "Leave|Hang up", 30, false).await.is_ok();
 
         if joined {
-            eprintln!("joined, staying {} minutes", cfg.stay_minutes);
-            sleep(Duration::from_secs(cfg.stay_minutes * 60)).await;
+            eprintln!("joined {}, staying {} minutes", meeting.name, stay_minutes);
+            sleep(Duration::from_secs(stay_minutes * 60)).await;
             return Ok(());
         }
 
