@@ -1,8 +1,8 @@
-mod alarm;
-mod bootstrap;
-mod browser;
 mod configurations;
+mod bootstrap;
 mod snapshot;
+mod browser;
+mod alarm;
 mod teams;
 
 use crate::alarm::alarm;

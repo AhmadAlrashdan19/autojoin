@@ -1,5 +1,5 @@
-use chromiumoxide::Page;
 use chromiumoxide::page::ScreenshotParams;
+use chromiumoxide::Page;
 
 pub async fn snapshot(page: &Page, tag: &str) {
     let js = r#"JSON.stringify({
@@ -17,7 +17,7 @@ pub async fn snapshot(page: &Page, tag: &str) {
 }
 
 pub async fn screenshot(page: &Page, tag: &str) {
-    let path = format!("/tmp/autojoin-{}.png", tag.replace(' ', "-"));
+    let path = format!("/tmp/autojoin-screenshots/autojoin-{}.png", tag.replace(' ', "-"));
     let params = ScreenshotParams::builder().full_page(true).build();
     match page.save_screenshot(params, &path).await {
         Ok(_) => eprintln!("[{tag}] screenshot saved in: {path}"),

@@ -1,5 +1,5 @@
-use serde::Deserialize;
 use super::config::{default_stay, default_browser};
+use serde::Deserialize;
 
 /// Shared settings: `[configurations]` table.
 #[derive(Debug, Deserialize)]

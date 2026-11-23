@@ -1,10 +1,10 @@
 use anyhow::{Context, Result, anyhow, bail};
+use std::{env, fs, path::PathBuf};
 use chrono::{Datelike, Local};
 use serde::Deserialize;
-use std::{env, fs, path::PathBuf};
 
-use super::meeting::Meeting;
 use super::settings::Settings;
+use super::meeting::Meeting;
 
 /// A meeting is picked when "now" is within this many minutes of its start time.
 const PICK_WINDOW_MIN: i64 = 20;
@@ -117,7 +117,7 @@ impl Config {
             }
 
             let diff = (now.time() - time).num_minutes().abs();
-            if diff <= PICK_WINDOW_MIN && best.map_or(true, |(_, d)| diff < d) {
+            if diff <= PICK_WINDOW_MIN && best.is_none_or(|(_, d)| diff < d) {
                 best = Some((meeting, diff));
             }
         }

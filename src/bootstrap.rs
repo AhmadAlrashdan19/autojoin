@@ -1,14 +1,44 @@
+use chromiumoxide::cdp::browser_protocol::network::{CookieParam, TimeSinceEpoch};
+use chromiumoxide::{Browser, BrowserConfig, Page};
+use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::{Result, anyhow};
-use chromiumoxide::{Browser, BrowserConfig};
 use futures::StreamExt;
 use std::path::PathBuf;
 
-use crate::alarm::alarm;
 use crate::configurations::config::{Config, home_dir};
+use crate::alarm::alarm;
 use crate::teams::run;
 
 fn profile_dir() -> Result<PathBuf> {
     Ok(home_dir()?.join(".config/autojoin/profile-brave"))
+}
+
+async fn persist_msal_key(page: &Page) {
+    let Ok(cookies) = page.get_cookies().await else { return };
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs_f64() + 90.0 * 86400.0;
+
+    let params: Vec<CookieParam> = cookies
+        .iter()
+        .filter(|c| c.name == "msal.cache.encryption")
+        .filter_map(|c| {
+            CookieParam::builder()
+                .name(&c.name)
+                .value(&c.value)
+                .domain(&c.domain)
+                .path(&c.path)
+                .secure(c.secure)
+                .http_only(c.http_only)
+                .expires(TimeSinceEpoch::new(exp))
+                .build()
+                .ok()
+        })
+        .collect();
+    if !params.is_empty() {
+        let _ = page.set_cookies(params).await;
+    }
 }
 
 pub async fn bootstrap() -> Result<()> {
@@ -45,21 +75,26 @@ pub async fn bootstrap() -> Result<()> {
     });
 
     let Some(meeting) = meeting else {
-        let _page = browser.new_page(settings.home_url.as_str()).await?;
+        let page = browser.new_page(settings.home_url.as_str()).await?;
         println!("Sign in fully (including MFA), then press Enter here...");
         let mut s = String::new();
         std::io::stdin().read_line(&mut s)?;
+        persist_msal_key(&page).await;
         browser.close().await?;
+        browser.wait().await?;
         return Ok(());
     };
 
     let page = browser.new_page("about:blank").await?;
-    if let Err(e) = run(&page, &settings, meeting).await {
+    if let Err(e) = run(&page, settings, meeting).await {
         eprintln!("ERROR: {e:#}");
+        persist_msal_key(&page).await;
         alarm(&format!("Auto-join failed: {e}. Join manually NOW!")).await;
         browser.wait().await?;
     }
-    browser.close().await?;
+    persist_msal_key(&page).await;
+    let _ = browser.close().await;
+    let _ = browser.wait().await;
 
     Ok(())
 }

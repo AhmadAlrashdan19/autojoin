@@ -4,7 +4,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 /// Wait for an ENABLED button matching the regex. Click it if `click` is true.
-pub async fn find_button(page: &Page, pattern: &str, timeout_s: u64, click: bool) -> Result<()> {
+pub async fn has_button(page: &Page, pattern: &str, click: bool) -> bool {
     let js = format!(
         r#"(() => {{
             const re = new RegExp("{pattern}", "i");
@@ -16,13 +16,15 @@ pub async fn find_button(page: &Page, pattern: &str, timeout_s: u64, click: bool
             return true;
         }})()"#
     );
+    match page.evaluate(js.as_str()).await {
+        Ok(v) => v.into_value::<bool>().unwrap_or(false),
+        Err(_) => false, // page navigating, retry
+    }
+}
 
+pub async fn find_button(page: &Page, pattern: &str, timeout_s: u64, click: bool) -> Result<()> {
     for _ in 0..(timeout_s * 2) {
-        let found = match page.evaluate(js.as_str()).await {
-            Ok(v) => v.into_value::<bool>().unwrap_or(false),
-            Err(_) => false, // page navigating, retry
-        };
-        if found {
+        if has_button(page, pattern, click).await {
             return Ok(());
         }
         sleep(Duration::from_millis(500)).await;
