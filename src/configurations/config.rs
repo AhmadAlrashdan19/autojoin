@@ -38,7 +38,7 @@ impl Config {
             return Ok(PathBuf::from(p));
         }
 
-        Ok(home_dir()?.join("Desktop/Studying/Github_Repos/Projects/autojoin/config.toml"))
+        Ok(home_dir()?.join(".config/autojoin/config.toml"))
     }
 
     pub fn load() -> Result<Self> {

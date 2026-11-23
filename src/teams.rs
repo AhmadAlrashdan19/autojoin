@@ -7,11 +7,11 @@ use crate::browser::{click_button, find_button, has_button, type_into};
 use crate::configurations::{meeting::Meeting, settings::Settings};
 use crate::snapshot;
 
-const SINGED_IN: &str = "Join now|Continue on this browser|Use the web app instead|^Chat$|^Calendar$";
+const SIGNED_IN: &str = "Join now|Continue on this browser|Use the web app instead|^Chat$|^Calendar$";
 
 async fn wait_ready(page: &Page, timeout_s: u64) -> Result<bool> {
     for _ in 0..(timeout_s * 2) {
-        if has_button(page, SINGED_IN, false).await {
+        if has_button(page, SIGNED_IN, false).await {
             return Ok(true);
         }
         

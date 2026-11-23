@@ -19,7 +19,7 @@ impl Meeting {
             .iter()
             .map(|d| {
                 d.parse::<Weekday>()
-                .map_err(|_| anyhow!("Meeting '{}': Bad dat: {d} (use Mon, Tue, ...)", self.name))
+                .map_err(|_| anyhow!("Meeting '{}': Bad day: {d} (use Mon, Tue, ...)", self.name))
             })
             .collect::<Result<Vec<_>>>()?;
 
