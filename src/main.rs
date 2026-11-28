@@ -1,7 +1,7 @@
 mod configurations;
 mod bootstrap;
 mod snapshot;
-mod browser;
+mod website;
 mod alarm;
 mod teams;
 

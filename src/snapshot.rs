@@ -1,4 +1,5 @@
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 
 use chromiumoxide::page::ScreenshotParams;
 use chromiumoxide::Page;
@@ -24,6 +25,8 @@ pub async fn screenshot(page: &Page, tag: &str) {
         eprintln!("[{tag}] cannot create {screenshot_dir}: {e}");
         return;
     }
+
+    let _ = fs::set_permissions(screenshot_dir, fs::Permissions::from_mode(0o700));
 
     let path = format!("{screenshot_dir}/autojoin-{}.png", tag.replace(' ', "-"));
     let params = ScreenshotParams::builder().full_page(true).build();

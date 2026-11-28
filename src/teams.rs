@@ -3,7 +3,7 @@ use anyhow::{Result, bail};
 use chromiumoxide::Page;
 use tokio::time::sleep;
 
-use crate::browser::{click_button, find_button, has_button, type_into};
+use crate::website::{click_button, find_button, has_button, type_into};
 use crate::configurations::{meeting::Meeting, settings::Settings};
 use crate::snapshot;
 
@@ -30,12 +30,6 @@ pub async fn is_guest_page(page: &Page) -> bool {
         .flatten()
         .map(|u| u.contains("light-meetings"))
         .unwrap_or(false)
-}
-
-/// Close optional popups. Each step is allowed to fail silently.
-pub async fn dismiss_popups(page: &Page) {
-    let _ = click_button(page, "Continue on this browser|Use the web app instead", 4).await;
-    let _ = click_button(page, "Continue without audio or video", 4).await;
 }
 
 /// Guest page: click Sign in, type email, click Next.
@@ -81,31 +75,49 @@ pub async fn run(page: &Page, cfg: &Settings, meeting: &Meeting) -> Result<()> {
             sleep(Duration::from_secs(5u64 << (attempt - 1))).await;
             continue;
         }
-        sleep(Duration::from_secs(6)).await;
-        dismiss_popups(page).await;
+
         snapshot::snapshot(page, "after goto").await;
 
-        if is_guest_page(page).await {
-            if let Err(e) = sign_in(page, &cfg.email).await {
-                eprintln!("sign-in failed: {e:#}");
+        // Popups appear late: keep clearing them until "Join now" is enabled.
+        let mut sign_in_tried = false;
+        let mut joined = false;
+        for _ in 0..120 {
+            // Already in the meeting (e.g. joined by hand)? Stop clicking.
+            if has_button(page, "Leave|Hang up", false).await {
+                joined = true;
+                break;
             }
-            dismiss_popups(page).await;
-        }
-        snapshot::snapshot(page, "before join").await;
+            
+            if !sign_in_tried && is_guest_page(page).await {
+                sign_in_tried = true;
+                if let Err(e) = sign_in(page, &cfg.email).await {
+                    eprintln!("sign-in failed: {e:#}");
+                }
+            }
+            
+            let _ = has_button(page, "Continue on this browser|Use the web app instead", true).await;
+            let _ = has_button(page, "Continue without audio or video", true).await;
 
-        // Join counts only if a Leave button shows up afterwards.
-        let joined = click_button(page, "Join now", 25).await.is_ok()
-            && find_button(page, "Leave|Hang up", 30, false).await.is_ok();
+            if has_button(page, "Join now", true).await {
+                // Join counts only if a Leave button shows up afterwards.
+                joined = find_button(page, "Leave|Hang up", 30, false).await.is_ok();
+                break;
+            }
+            sleep(Duration::from_millis(500)).await;
+        }
 
         if joined {
-            eprintln!("joined {}, staying {} minutes", meeting.name, stay_minutes);
+            println!("joined {}, staying {} minutes", meeting.name, stay_minutes);
             sleep(Duration::from_secs(stay_minutes * 60)).await;
             return Ok(());
         }
 
         snapshot::screenshot(page, &format!("attempt-{attempt}-failed")).await;
         if let Ok(Some(url)) = page.url().await {
-            eprintln!("attempt {attempt} failed, url = {url}");
+            eprintln!(
+                "attempt {attempt} failed, url = {}",
+                url.split(['?', '#']).next().unwrap_or("")
+            );
         } else {
             eprintln!("attempt {attempt} failed, URL unavailable");
         }

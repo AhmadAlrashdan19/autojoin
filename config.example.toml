@@ -1,0 +1,14 @@
+# Copy to config.toml and edit. config.toml is git-ignored.
+
+[configurations]
+home_url = "https://teams.cloud.microsoft/"  # must start with https://
+email = "you@example.com"                    # used for guest sign-in
+browser = "brave"  # brave | helium | chrome | chromium | edge | vivaldi | /full/path
+stay_minutes = 90  # default stay in minutes (optional)
+
+[[meetings]]
+name = "math"          # unique, case-insensitive, used by --meeting <name>
+link = "https://teams.cloud.microsoft/..."  # must start with https://
+days = ["Mon", "Wed"]  # Mon Tue Wed Thu Fri Sat Sun
+time = "17:30"         # HH:MM 24h, local time; picked within 20 min of now
+# stay_minutes = 90    # optional per-meeting override

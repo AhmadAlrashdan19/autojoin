@@ -1,6 +1,6 @@
 [package]
 name = "autojoin"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2024"
 
 [dependencies]
@@ -11,3 +11,5 @@ anyhow = "1"
 toml = "1.2.1"
 serde = "1.0.229"
 chrono = "0.4.45"
+which = "8.0.6"
+toml_edit = "0.25.20"

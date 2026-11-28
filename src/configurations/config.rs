@@ -1,22 +1,38 @@
-use anyhow::{Context, Result, anyhow, bail};
-use std::{env, fs, path::PathBuf};
+use anyhow::{Context, Ok, Result, anyhow, bail};
 use chrono::{Datelike, Local};
 use serde::Deserialize;
+use std::{env, fs, path::PathBuf};
+use toml_edit::{DocumentMut, value};
 
-use super::settings::Settings;
+use super::browser::resolve_browser;
 use super::meeting::Meeting;
+use super::settings::Settings;
 
 /// A meeting is picked when "now" is within this many minutes of its start time.
 const PICK_WINDOW_MIN: i64 = 20;
 
 pub fn default_stay() -> u64 { 90 }
 
-pub fn default_browser() -> String { "/usr/bin/brave".into() }
+pub fn default_browser() -> String { "brave".into() }
 
 pub fn home_dir() -> Result<PathBuf> {
     env::var_os("HOME")
         .map(PathBuf::from)
         .context("HOME not set")
+}
+
+pub fn set_browser_in_toml(content: &str, browser: &str) -> Result<String> {
+    let mut doc = content
+        .parse::<DocumentMut>()
+        .context("This TOML content is invalid")?;
+    let item = doc
+        .get_mut("configurations")
+        .ok_or_else(|| anyhow!("'configurations' table does not exist"))?;
+    let table = item
+        .as_table_mut()
+        .ok_or_else(|| anyhow!("'configurations' must be a [configurations] table"))?;
+    table["browser"] = value(browser);
+    Ok(doc.to_string())
 }
 
 pub struct Config {
@@ -38,13 +54,17 @@ impl Config {
             return Ok(PathBuf::from(p));
         }
 
-        Ok(home_dir()?.join(".config/autojoin/config.toml"))
+        Ok(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config.toml"))
     }
 
     pub fn load() -> Result<Self> {
         let path = Self::path()?;
-        let text =
-            fs::read_to_string(&path).with_context(|| format!("Cannot read {}", path.display()))?;
+        let text = fs::read_to_string(&path).with_context(|| {
+            format!(
+                "Cannot read {}. Copy config.example.toml to config.toml",
+                path.display()
+            )
+        })?;
         let file: ConfigFile =
             toml::from_str(&text).with_context(|| format!("Invalid TOML in {}", path.display()))?;
         let cfg = &file.configurations;
@@ -70,17 +90,22 @@ impl Config {
             seen.push(key);
 
             if !meeting.link.starts_with("https://") {
-                bail!("Config: Meeting '{}' link must start with https://", meeting.name);
+                bail!(
+                    "Config: Meeting '{}' link must start with https://",
+                    meeting.name
+                );
             }
 
             if meeting.days.is_empty() {
                 bail!("Config: Meeting '{}' days is empty", meeting.name);
             }
+
+            meeting.schedule()?;
         }
 
         Ok(Config {
             settings: file.configurations,
-            meetings: file.meetings
+            meetings: file.meetings,
         })
     }
 
@@ -99,10 +124,10 @@ impl Config {
 
         if let Some(name) = selector {
             return self
-            .meetings
-            .iter()
-            .find(|m| m.name.eq_ignore_ascii_case(name))
-            .ok_or_else(|| anyhow!("No meeting named '{name}'. Known: {}", names()));
+                .meetings
+                .iter()
+                .find(|m| m.name.eq_ignore_ascii_case(name))
+                .ok_or_else(|| anyhow!("No meeting named '{name}'. Known: {}", names()));
         }
 
         let now = Local::now();
@@ -129,5 +154,96 @@ impl Config {
                 names()
             )
         })
+    }
+
+    pub fn set_browser_as_default(browser: &str) -> Result<()> {
+        let _ = resolve_browser(browser)?;
+        let path = Self::path()?;
+        let text =
+            fs::read_to_string(&path).with_context(|| format!("Cannot read {}", path.display()))?;
+        let new_config_file_content = set_browser_in_toml(&text, browser)?;
+
+        let tmp_path = path.with_file_name("config-tmp.toml");
+        fs::write(&tmp_path, &new_config_file_content)
+            .with_context(|| format!("Cannot write in the tmp file {}", tmp_path.display()))?;
+        fs::rename(&tmp_path, &path)
+            .with_context(|| format!("Cannot rename the tmp file {}", tmp_path.display()))?;
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn configurations_is_not_a_table() {
+        let content = r#"configurations = { home_url = "https://team.net" }"#;
+        let err = set_browser_in_toml(content, "helium").unwrap_err();
+        assert!(err.to_string().contains("must be a"));
+    }
+
+    #[test]
+    fn key_is_exist() {
+        let content = r#"
+            [configurations]
+            home_url = "https://team.net"
+            email = "user@comp.met"
+            browser = "brave"   # brave | chrome | chromium | edge | vivaldi | /full/path
+            stay_minutes = 60
+"#;
+        let doc = set_browser_in_toml(content, "helium");
+        assert_eq!(
+            doc.unwrap(),
+            r#"
+            [configurations]
+            home_url = "https://team.net"
+            email = "user@comp.met"
+            browser = "helium"
+            stay_minutes = 60
+"#
+        );
+    }
+
+    #[test]
+    fn key_does_not_exist() {
+        let content = r#"
+            [configurations]
+            home_url = "https://team.net"
+            email = "user@comp.met"
+            #  browser = "brave"   # brave | chrome | chromium | edge | vivaldi | /full/path
+            stay_minutes = 60
+
+            [[meetings]]
+            name = "math"
+            link = "https://team.net"
+            days = ["Mon", "Wed"]
+            time = "17:25"
+
+"#;
+        let doc = set_browser_in_toml(content, "helium").unwrap();
+        println!("{doc}");
+        assert!(doc.contains(r#"browser = "helium""#));
+        assert!(doc.contains(r#"# brave | chrome | chromium | edge | vivaldi | /full/path"#));
+        assert!(doc.contains(r#"stay_minutes = 60"#));
+        assert!(doc.contains(
+            r#"browser = "helium"
+
+            [[meetings]]"#
+        ));
+    }
+
+    #[test]
+    fn table_does_not_exist() {
+        let content = r#"
+            [[meetings]]
+            name = "math"
+            link = "https://team.net"
+            days = ["Mon", "Wed"]
+            time = "17:25"
+"#;
+        let doc = set_browser_in_toml(content, "helium");
+        assert!(doc.is_err());
     }
 }
